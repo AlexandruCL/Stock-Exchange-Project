@@ -1,14 +1,11 @@
 package com.stockexchange.engine;
 
-import com.stockexchange.model.Order;
-import com.stockexchange.model.Reject;
-import com.stockexchange.model.Side;
 import com.stockexchange.model.Trade;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Minimal thread-safe Settlement for engine tests; stands in for Fabi's AccountService. */
-final class LedgerSettlement implements Settlement {
+/** Minimal thread-safe Accounts for engine tests; stands in for Fabi's AccountService. */
+final class LedgerAccounts implements Accounts {
 
     private final Map<Long, Long> cash = new HashMap<>();
     private final Map<Long, Long> reservedCash = new HashMap<>();
@@ -63,64 +60,47 @@ final class LedgerSettlement implements Settlement {
     }
 
     @Override
-    public synchronized Reject reserve(Order order) {
-        return reserveChange(order, order.price(), order.remaining());
+    public synchronized boolean reserveCash(long traderId, long amount) {
+        if (cash.get(traderId) < amount) {
+            return false;
+        }
+        cash.merge(traderId, -amount, Long::sum);
+        reservedCash.merge(traderId, amount, Long::sum);
+        return true;
     }
 
     @Override
-    public synchronized Reject reserveChange(Order order, long newPrice, long newRemaining) {
-        long trader = order.traderId();
-        if (!cash.containsKey(trader)) {
-            return Reject.UNKNOWN_TRADER;
+    public synchronized boolean reserveShares(long traderId, String companyId, long qty) {
+        String key = key(traderId, companyId);
+        if (shares.get(key) < qty) {
+            return false;
         }
-        if (order.side() == Side.BID) {
-            long old = isReserved(order) ? order.price() * order.remaining() : 0;
-            long need = newPrice * newRemaining;
-            if (cash.get(trader) + old < need) {
-                return Reject.INSUFFICIENT_FUNDS;
-            }
-            cash.merge(trader, old - need, Long::sum);
-            reservedCash.merge(trader, need - old, Long::sum);
-        } else {
-            String key = key(trader, order.companyId());
-            long old = isReserved(order) ? order.remaining() : 0;
-            if (shares.getOrDefault(key, 0L) + old < newRemaining) {
-                return Reject.INSUFFICIENT_SHARES;
-            }
-            shares.merge(key, old - newRemaining, Long::sum);
-            reservedShares.merge(key, newRemaining - old, Long::sum);
-        }
-        return null;
+        shares.merge(key, -qty, Long::sum);
+        reservedShares.merge(key, qty, Long::sum);
+        return true;
     }
 
     @Override
-    public synchronized void release(Order order) {
-        long trader = order.traderId();
-        if (order.side() == Side.BID) {
-            long held = order.price() * order.remaining();
-            cash.merge(trader, held, Long::sum);
-            reservedCash.merge(trader, -held, Long::sum);
-        } else {
-            String key = key(trader, order.companyId());
-            shares.merge(key, order.remaining(), Long::sum);
-            reservedShares.merge(key, -order.remaining(), Long::sum);
-        }
+    public synchronized void releaseCash(long traderId, long amount) {
+        cash.merge(traderId, amount, Long::sum);
+        reservedCash.merge(traderId, -amount, Long::sum);
     }
 
     @Override
-    public synchronized void settle(Trade trade, Order bid, Order ask) {
+    public synchronized void releaseShares(long traderId, String companyId, long qty) {
+        shares.merge(key(traderId, companyId), qty, Long::sum);
+        reservedShares.merge(key(traderId, companyId), -qty, Long::sum);
+    }
+
+    @Override
+    public synchronized void settle(Trade trade, long buyerLimitPrice) {
         long paid = trade.price() * trade.qty();
-        long refund = (bid.price() - trade.price()) * trade.qty();
+        long refund = (buyerLimitPrice - trade.price()) * trade.qty();
         reservedCash.merge(trade.buyerId(), -(paid + refund), Long::sum);
         cash.merge(trade.buyerId(), refund, Long::sum);
         cash.merge(trade.sellerId(), paid, Long::sum);
         reservedShares.merge(key(trade.sellerId(), trade.companyId()), -trade.qty(), Long::sum);
         shares.merge(key(trade.buyerId(), trade.companyId()), trade.qty(), Long::sum);
-    }
-
-    /** New orders are reserved only after reserve() succeeds; a fresh order has no seq yet. */
-    private static boolean isReserved(Order order) {
-        return order.seq() != 0;
     }
 
     private static String key(long trader, String company) {

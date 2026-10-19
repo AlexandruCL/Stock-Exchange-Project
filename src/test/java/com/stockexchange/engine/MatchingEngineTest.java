@@ -2,7 +2,6 @@ package com.stockexchange.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.stockexchange.model.BookSnapshot;
@@ -30,26 +29,88 @@ class MatchingEngineTest {
     private static final long CASH = 1_000_000;
     private static final long SHARES = 1_000;
 
-    private LedgerSettlement ledger;
-    private MatchingEngine engine;
+    private LedgerAccounts ledger;
+    private MatchingEngine acme;
+    private MatchingEngine beta;
     private final AtomicLong orderIds = new AtomicLong();
     private final AtomicLong globalSeq = new AtomicLong();
 
     @BeforeEach
     void setUp() {
-        ledger = new LedgerSettlement();
+        ledger = new LedgerAccounts();
         for (long trader = 1; trader <= 4; trader++) {
             ledger.addTrader(trader, CASH);
             ledger.addShares(trader, ACME, SHARES);
             ledger.addShares(trader, BETA, SHARES);
         }
-        engine = new MatchingEngine(
-                List.of(new Company(ACME, ACME, 100, 4 * SHARES), new Company(BETA, BETA, 200, 4 * SHARES)),
-                ledger, globalSeq::incrementAndGet);
+        acme = new MatchingEngine(new Company(ACME, ACME, 100, 4 * SHARES), ledger, globalSeq::incrementAndGet);
+        beta = new MatchingEngine(new Company(BETA, BETA, 200, 4 * SHARES), ledger, globalSeq::incrementAndGet);
+    }
+
+    private MatchingEngine engine(String company) {
+        return ACME.equals(company) ? acme : beta;
     }
 
     private OrderResult place(long trader, String company, Side side, long price, long qty) {
-        return engine.place(new Order(orderIds.incrementAndGet(), trader, company, side, price, qty)).result();
+        Order order = new Order(orderIds.incrementAndGet(), trader, company, side, price, qty);
+        return engine(company).submit(order).toOrderResult();
+    }
+
+    @Test
+    void exactMatch_should_giveOneTrade_and_bothDone() {
+        OrderResult ask = place(1, ACME, Side.ASK, 10, 100);
+
+        OrderResult bid = place(2, ACME, Side.BID, 10, 100);
+
+        assertEquals(1, bid.trades().size());
+        assertEquals(OrderState.DONE, bid.order().state());
+        assertTrue(acme.snapshot().asks().isEmpty());
+        assertEquals(ask.order().id(), bid.trades().get(0).askOrderId());
+    }
+
+    @Test
+    void partialFill_should_matchTwoAsksAndLeaveRemainder() {
+        place(1, ACME, Side.ASK, 10, 30);
+        OrderResult askB = place(2, ACME, Side.ASK, 10, 40);
+
+        OrderResult bid = place(3, ACME, Side.BID, 11, 50);
+
+        assertEquals(30, bid.trades().get(0).qty());
+        assertEquals(20, bid.trades().get(1).qty());
+        assertEquals(askB.order().id(), acme.snapshot().asks().get(0).id());
+        assertEquals(20, acme.snapshot().asks().get(0).remaining());
+    }
+
+    @Test
+    void anaBobCarl_should_sellTheAskOnlyToTheFirstBuyer() {
+        place(1, ACME, Side.ASK, 10, 100);
+
+        OrderResult bob = place(2, ACME, Side.BID, 10, 100);
+        OrderResult carl = place(3, ACME, Side.BID, 10, 100);
+
+        assertEquals(100, bob.trades().get(0).qty());
+        assertTrue(carl.trades().isEmpty());
+        assertEquals(SHARES - 100, ledger.shares(1, ACME));
+        assertEquals(SHARES + 100, ledger.shares(2, ACME));
+        assertEquals(SHARES, ledger.shares(3, ACME));
+    }
+
+    @Test
+    void modify_should_rejectWrongOwner() {
+        OrderResult placed = place(1, ACME, Side.BID, 90, 10);
+
+        assertEquals(Reject.NOT_OWNER, acme.modify(2, placed.order().id(), 0, 95, 10).reason());
+    }
+
+    @Test
+    void modify_should_changeNothing_when_newReservationFails() {
+        OrderResult placed = place(1, ACME, Side.BID, 90, 10);
+
+        OrderResult result = acme.modify(1, placed.order().id(), 0, 90, 1_000_000).toOrderResult();
+
+        assertEquals(Reject.INSUFFICIENT_FUNDS, result.reason());
+        assertEquals(900, ledger.reservedCash(1));
+        assertEquals(10, acme.snapshot().bids().get(0).remaining());
     }
 
     @Test
@@ -58,7 +119,7 @@ class MatchingEngineTest {
 
         assertTrue(result.ok());
         assertEquals(OrderState.OPEN, result.order().state());
-        assertEquals(1, engine.book(ACME).bids().size());
+        assertEquals(1, acme.snapshot().bids().size());
         assertEquals(10 * 90, ledger.reservedCash(1));
     }
 
@@ -85,7 +146,7 @@ class MatchingEngineTest {
         OrderResult result = place(2, ACME, Side.ASK, 100, 10);
 
         assertEquals(120, result.trades().get(0).price());
-        assertEquals(120, engine.book(ACME).lastPrice());
+        assertEquals(120, acme.snapshot().lastPrice());
     }
 
     @Test
@@ -98,8 +159,8 @@ class MatchingEngineTest {
         assertEquals(6, result.order().remaining());
         assertEquals(OrderState.OPEN, result.order().state());
         assertEquals(1, result.order().version());
-        assertEquals(1, engine.book(ACME).bids().size());
-        assertTrue(engine.book(ACME).asks().isEmpty());
+        assertEquals(1, acme.snapshot().bids().size());
+        assertTrue(acme.snapshot().asks().isEmpty());
     }
 
     @Test
@@ -133,7 +194,7 @@ class MatchingEngineTest {
         assertEquals(2, result.trades().size());
         assertEquals(5, result.trades().get(0).qty());
         assertEquals(3, result.trades().get(1).qty());
-        assertEquals(2, engine.book(ACME).asks().get(0).remaining());
+        assertEquals(2, acme.snapshot().asks().get(0).remaining());
     }
 
     @Test
@@ -147,24 +208,23 @@ class MatchingEngineTest {
     void place_should_rejectWithoutReserving_when_fundsOrSharesMissing() {
         assertEquals(Reject.INSUFFICIENT_FUNDS, place(1, ACME, Side.BID, 1001, 1000).reason());
         assertEquals(Reject.INSUFFICIENT_SHARES, place(1, ACME, Side.ASK, 10, SHARES + 1).reason());
-        assertEquals(Reject.UNKNOWN_TRADER, place(99, ACME, Side.BID, 10, 1).reason());
 
         assertEquals(0, ledger.reservedCash(1));
         assertEquals(0, ledger.reservedShares(1, ACME));
-        assertTrue(engine.book(ACME).bids().isEmpty());
+        assertTrue(acme.snapshot().bids().isEmpty());
     }
 
     @Test
     void cancel_should_releaseReservation_and_removeFromBook() {
         OrderResult placed = place(1, ACME, Side.BID, 90, 10);
 
-        OrderResult result = engine.cancel(1, placed.order().id()).result();
+        OrderResult result = acme.cancel(1, placed.order().id()).toOrderResult();
 
         assertTrue(result.ok());
         assertEquals(OrderState.CANCELLED, result.order().state());
         assertEquals(CASH, ledger.cash(1));
         assertEquals(0, ledger.reservedCash(1));
-        assertTrue(engine.book(ACME).bids().isEmpty());
+        assertTrue(acme.snapshot().bids().isEmpty());
     }
 
     @Test
@@ -172,10 +232,10 @@ class MatchingEngineTest {
         OrderResult placed = place(1, ACME, Side.BID, 90, 10);
         long id = placed.order().id();
 
-        assertEquals(Reject.NOT_OWNER, engine.cancel(2, id).result().reason());
-        assertEquals(Reject.NOT_FOUND, engine.cancel(1, 9999).result().reason());
-        engine.cancel(1, id);
-        assertEquals(Reject.ORDER_CLOSED, engine.cancel(1, id).result().reason());
+        assertEquals(Reject.NOT_OWNER, acme.cancel(2, id).toOrderResult().reason());
+        assertEquals(Reject.NOT_FOUND, acme.cancel(1, 9999).toOrderResult().reason());
+        acme.cancel(1, id);
+        assertEquals(Reject.ORDER_CLOSED, acme.cancel(1, id).toOrderResult().reason());
     }
 
     @Test
@@ -183,7 +243,7 @@ class MatchingEngineTest {
         OrderResult ask = place(1, ACME, Side.ASK, 100, 5);
         place(2, ACME, Side.BID, 100, 5);
 
-        OrderResult result = engine.modify(1, ask.order().id(), 1, 90, 5).result();
+        OrderResult result = acme.modify(1, ask.order().id(), 1, 90, 5).toOrderResult();
 
         assertEquals(Reject.ORDER_CLOSED, result.reason());
     }
@@ -192,17 +252,17 @@ class MatchingEngineTest {
     void modify_should_reject_when_versionStale() {
         OrderResult placed = place(1, ACME, Side.BID, 90, 10);
 
-        OrderResult result = engine.modify(1, placed.order().id(), 7, 95, 10).result();
+        OrderResult result = acme.modify(1, placed.order().id(), 7, 95, 10).toOrderResult();
 
         assertEquals(Reject.VERSION_CONFLICT, result.reason());
-        assertEquals(90, engine.book(ACME).bids().get(0).price());
+        assertEquals(90, acme.snapshot().bids().get(0).price());
     }
 
     @Test
     void modify_should_rereserveAndBumpVersion_when_priceChanges() {
         OrderResult placed = place(1, ACME, Side.BID, 90, 10);
 
-        OrderResult result = engine.modify(1, placed.order().id(), 0, 95, 20).result();
+        OrderResult result = acme.modify(1, placed.order().id(), 0, 95, 20).toOrderResult();
 
         assertTrue(result.ok());
         assertEquals(1, result.order().version());
@@ -216,12 +276,12 @@ class MatchingEngineTest {
         OrderResult first = place(1, ACME, Side.ASK, 100, 5);
         OrderResult second = place(2, ACME, Side.ASK, 100, 5);
 
-        engine.modify(2, second.order().id(), 0, 100, 3);
-        assertEquals(second.order().seq(), engine.book(ACME).asks().get(1).seq());
+        acme.modify(2, second.order().id(), 0, 100, 3);
+        assertEquals(second.order().seq(), acme.snapshot().asks().get(1).seq());
 
-        engine.modify(1, first.order().id(), 0, 101, 5);
-        engine.modify(1, first.order().id(), 1, 100, 5);
-        assertEquals(second.order().id(), engine.book(ACME).asks().get(0).id());
+        acme.modify(1, first.order().id(), 0, 101, 5);
+        acme.modify(1, first.order().id(), 1, 100, 5);
+        assertEquals(second.order().id(), acme.snapshot().asks().get(0).id());
     }
 
     @Test
@@ -229,7 +289,7 @@ class MatchingEngineTest {
         place(1, ACME, Side.ASK, 100, 5);
         OrderResult bid = place(2, ACME, Side.BID, 90, 5);
 
-        OrderResult result = engine.modify(2, bid.order().id(), 0, 100, 5).result();
+        OrderResult result = acme.modify(2, bid.order().id(), 0, 100, 5).toOrderResult();
 
         assertEquals(1, result.trades().size());
         assertEquals(OrderState.DONE, result.order().state());
@@ -240,7 +300,7 @@ class MatchingEngineTest {
         place(1, ACME, Side.ASK, 100, 4);
         OrderResult bid = place(2, ACME, Side.BID, 100, 10);
 
-        OrderResult result = engine.modify(2, bid.order().id(), 1, 100, 4).result();
+        OrderResult result = acme.modify(2, bid.order().id(), 1, 100, 4).toOrderResult();
 
         assertEquals(Reject.INVALID_INPUT, result.reason());
     }
@@ -249,7 +309,7 @@ class MatchingEngineTest {
     void place_should_emitEventsInOrder() {
         place(1, ACME, Side.ASK, 100, 5);
 
-        List<ExchangeEvent> events = engine.place(
+        List<ExchangeEvent> events = acme.submit(
                 new Order(orderIds.incrementAndGet(), 2, ACME, Side.BID, 100, 5)).events();
 
         assertTrue(events.get(0) instanceof ExchangeEvent.OrderCreated);
@@ -262,15 +322,14 @@ class MatchingEngineTest {
     void history_should_beACopy_and_bookSnapshotImmutable() {
         place(1, ACME, Side.ASK, 100, 5);
         place(2, ACME, Side.BID, 100, 5);
-        BookSnapshot before = engine.book(ACME);
+        BookSnapshot before = acme.snapshot();
 
-        List<Trade> history = engine.history(ACME);
+        List<Trade> history = acme.history();
         place(3, ACME, Side.BID, 50, 1);
 
         assertEquals(1, history.size());
-        assertEquals(1, engine.history(ACME).size());
+        assertEquals(1, acme.history().size());
         assertTrue(before.bids().isEmpty());
-        assertNull(engine.book("ZZZ"));
     }
 
     @Test
@@ -330,9 +389,9 @@ class MatchingEngineTest {
                         } else {
                             OrderResult o = mine.get(random.nextInt(mine.size()));
                             if (action == 7) {
-                                engine.cancel(trader, o.order().id());
+                                engine(o.order().companyId()).cancel(trader, o.order().id());
                             } else {
-                                engine.modify(trader, o.order().id(), o.order().version(),
+                                engine(o.order().companyId()).modify(trader, o.order().id(), o.order().version(),
                                         95 + random.nextInt(11), 30 + random.nextInt(20));
                             }
                         }
@@ -351,7 +410,7 @@ class MatchingEngineTest {
         Thread reader = new Thread(() -> {
             while (running.get()) {
                 for (String company : List.of(ACME, BETA)) {
-                    BookSnapshot book = engine.book(company);
+                    BookSnapshot book = engine(company).snapshot();
                     if (!book.bids().isEmpty() && !book.asks().isEmpty()
                             && book.bids().get(0).price() >= book.asks().get(0).price()) {
                         crossedSnapshots.incrementAndGet();
@@ -378,7 +437,7 @@ class MatchingEngineTest {
                     && ledger.shares(trader, BETA) >= 0);
         }
         for (String company : List.of(ACME, BETA)) {
-            BookSnapshot book = engine.book(company);
+            BookSnapshot book = engine(company).snapshot();
             if (!book.bids().isEmpty() && !book.asks().isEmpty()) {
                 assertFalse(book.bids().get(0).price() >= book.asks().get(0).price());
             }
