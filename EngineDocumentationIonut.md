@@ -49,3 +49,22 @@ No existing file was edited.
 `OrderBookTest` (4): priority ordering, remove vs find, snapshot. `MatchingEngineTest` (20): resting price, partial fills, price/time priority, multi-level sweep, validation and reservation rejects, cancel, modify (version conflict, closed, priority, crossing, filled limit), event order, immutability, and a 4-thread stress test (2 companies, 12,000 mixed operations, fixed seeds) that checks total cash and shares are constant, no negative balances and an uncrossed book. The thread interleaving is not deterministic; the order streams are.
 
 Run: `mvn test` (54 tests total with the existing ones, 0 failures).
+
+## Concurrency review against the two PDFs
+
+| PDF issue | Covered by | Status |
+|---|---|---|
+| 1-2 Race / double matching | Match-and-decrement inside the company lock; test `twoBuyersRacingForOneAsk_should_fillTheAskOnlyOnce` | Covered |
+| 3 Modify during trade | Modify takes the same lock; IN_TRADE never visible outside it; finished orders give `ORDER_CLOSED` | Covered (waits instead of rejecting, as README says) |
+| 4 TOCTOU on money/shares | `Settlement.reserve` called inside the lock | Engine side covered; `AccountService` must make check+reserve atomic |
+| 5 Deadlock | One company lock, never two; trader locks only inside `Settlement`, lower id first | Engine side covered; stress test fails on a hung worker (60 s join timeout) |
+| 6 Fairness | `ReentrantLock(true)` plus price-time priority with per-company seq | Covered |
+| 7 Inconsistent reads | Volatile immutable snapshot swapped once per operation; reader thread in the stress test asserts no crossed snapshot | Covered, with one limit: a trade is appended to history just before the snapshot swap, so a reader can briefly see the trade in history while the book still shows the old state |
+| 8 Global lock | Per-company state only | Covered |
+| 9 Duplicate requests | Not in the engine | Fabi/StockExchange: `requestId` map with atomic `putIfAbsent` |
+| 10 Stale view | Version check on modify | Covered |
+| 11-12 Busy wait / shutdown | Not in the engine | Capa, Fabi (`close()`) |
+| Pitfall: no I/O under lock | Events returned, not sent | Covered |
+| Pitfall: partial fills, multiple trades | Loop in `match`, tests | Covered |
+
+Open point: event `globalSeq` is drawn inside the lock but events are published after unlocking, so two threads on the same company can publish out of order. The event dispatcher must order by `globalSeq`.

@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -273,6 +274,37 @@ class MatchingEngineTest {
     }
 
     @Test
+    void twoBuyersRacingForOneAsk_should_fillTheAskOnlyOnce() throws Exception {
+        for (int round = 0; round < 200; round++) {
+            setUp();
+            place(1, ACME, Side.ASK, 100, 100);
+            CountDownLatch go = new CountDownLatch(1);
+            List<OrderResult> results = java.util.Collections.synchronizedList(new ArrayList<>());
+            List<Thread> buyers = new ArrayList<>();
+            for (long buyer = 2; buyer <= 3; buyer++) {
+                long id = buyer;
+                Thread thread = new Thread(() -> {
+                    try {
+                        go.await();
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    results.add(place(id, ACME, Side.BID, 100, 100));
+                });
+                buyers.add(thread);
+                thread.start();
+            }
+            go.countDown();
+            for (Thread thread : buyers) {
+                thread.join(10_000);
+            }
+            long traded = results.stream().flatMap(r -> r.trades().stream()).mapToLong(Trade::qty).sum();
+            assertEquals(100, traded);
+            assertEquals(SHARES - 100, ledger.shares(1, ACME));
+        }
+    }
+
+    @Test
     void concurrentOrders_should_keepCashAndSharesConstant() throws Exception {
         int threads = 4;
         int opsPerThread = 3000;
@@ -314,10 +346,28 @@ class MatchingEngineTest {
             workers.add(worker);
             worker.start();
         }
+        AtomicBoolean running = new AtomicBoolean(true);
+        AtomicLong crossedSnapshots = new AtomicLong();
+        Thread reader = new Thread(() -> {
+            while (running.get()) {
+                for (String company : List.of(ACME, BETA)) {
+                    BookSnapshot book = engine.book(company);
+                    if (!book.bids().isEmpty() && !book.asks().isEmpty()
+                            && book.bids().get(0).price() >= book.asks().get(0).price()) {
+                        crossedSnapshots.incrementAndGet();
+                    }
+                }
+            }
+        });
+        reader.start();
         start.countDown();
         for (Thread worker : workers) {
-            worker.join();
+            worker.join(60_000);
+            assertFalse(worker.isAlive(), "worker still running: possible deadlock");
         }
+        running.set(false);
+        reader.join();
+        assertEquals(0, crossedSnapshots.get());
 
         assertTrue(failures.isEmpty(), () -> String.valueOf(failures));
         assertEquals(threads * CASH, ledger.totalCash());
