@@ -1,3 +1,11 @@
 .claude/
 *.pdf
-
+skills-lock.json
+target/
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+logs/
