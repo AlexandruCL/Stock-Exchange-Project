@@ -73,4 +73,35 @@ Additions to the section 3 contracts:
 - Do not edit another member's package. Ask the owner or open a pull request to them.
 - Bug reports include the failing test, the seed, and the stack trace or log.
 
+## Tests and verification
+
+`mvn test` runs everything. The cross-cutting tests are in `src/test/java/com/stockexchange/verify` and use only the `Exchange` interface:
+
+| Class | Checks |
+|---|---|
+| `InvariantChecker` | Cash and shares conserved, no negatives, reservations back exactly the open orders, books sorted and not crossed, trades valid |
+| `ExchangeContractTest` | Rejects, reservation, cancel, modify rules, immutable results, event order |
+| `RaceConditionTest` | Latch-released races from the examples PDF, repeated 500 to 10,000 times |
+| `StressTest` | 50 threads, 5 companies, 100,000 seeded operations, `@Timeout(60)` |
+| `DeterminismTest` | Same seed gives a byte-identical event log |
+| `ShutdownTest` | 20 start/stop cycles leave no thread behind |
+
+They get their exchange from `TestExchanges.create(...)`. Until `StockExchange` is merged, that builds `ReferenceExchange` (test scope, over the real `MatchingEngine`); afterwards, change that one line.
+
+`ConsoleView` (package `view`) subscribes to the exchange, prints one line per trade, and every N seconds prints the top 5 bids and asks, last price and last 10 trades of each company. It reads snapshots only and prints on its own `console-view` thread. Sample:
+
+```
+[    0.064s] TRADE ACME      20 @      10.10  buyer  10  seller  17
+[    0.064s] TRADE ACME       6 @      10.00  buyer   1  seller  17
+---------------- board at     0.709s ----------------
+ACME  last       9.80  book v113  trades 68
+   bid qty        bid | ask         ask qty
+        15       9.80 | 9.90             15
+        14       9.70 | 10.00             3
+        24       9.70 | 10.10            22
+  recent: 21@9.90 8@9.90 1@9.80 13@9.80 6@9.80 3@9.80 6@9.90 2@9.80 6@9.80 4@9.80
+```
+
+`docs/report.md` has the architecture, the issue/mitigation table, test results, known limitations and the demo script.
+
 See `docs/glossary.md` for terms.
