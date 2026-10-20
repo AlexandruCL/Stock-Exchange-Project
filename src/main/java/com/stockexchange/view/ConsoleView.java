@@ -55,10 +55,21 @@ public final class ConsoleView implements AutoCloseable {
             return t;
         });
         exchange.subscribe(listener);
-        printer.scheduleWithFixedDelay(this::flushTrades, TRADE_FLUSH_MILLIS, TRADE_FLUSH_MILLIS,
-                TimeUnit.MILLISECONDS);
+        printer.scheduleWithFixedDelay(guarded(this::flushTrades), TRADE_FLUSH_MILLIS,
+                TRADE_FLUSH_MILLIS, TimeUnit.MILLISECONDS);
         long period = boardPeriod.toMillis();
-        printer.scheduleAtFixedRate(this::printBoard, period, period, TimeUnit.MILLISECONDS);
+        printer.scheduleAtFixedRate(guarded(this::printBoard), period, period, TimeUnit.MILLISECONDS);
+    }
+
+    /** A periodic task that throws is cancelled silently, so log the error and keep the schedule alive. */
+    private Runnable guarded(Runnable task) {
+        return () -> {
+            try {
+                task.run();
+            } catch (RuntimeException e) {
+                e.printStackTrace(out);
+            }
+        };
     }
 
     /** Unsubscribes, stops the printer thread, then prints any trade lines still queued. */
