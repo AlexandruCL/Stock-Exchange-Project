@@ -124,7 +124,7 @@ public final class EventBus implements AutoCloseable {
         for (Consumer<ExchangeEvent> listener : listeners) {
             try {
                 listener.accept(item.event());
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | Error e) {
                 listenerFailures.incrementAndGet();
                 System.err.println("EventBus: listener failed on event #" + item.seq() + ": " + e);
             }

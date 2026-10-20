@@ -66,6 +66,20 @@ class EventBusTest {
     }
 
     @Test
+    void listenerThrowingError_should_notStopDispatcher() {
+        bus.subscribe(e -> {
+            throw new AssertionError("listener error");
+        });
+        record();
+
+        bus.publish(List.of(event(1), event(2)));
+        bus.close();
+
+        assertEquals(List.of(1L, 2L), received);
+        assertEquals(2, bus.listenerFailures());
+    }
+
+    @Test
     void throwingListener_should_notStopOtherListeners() {
         bus.subscribe(e -> {
             throw new IllegalStateException("listener bug");

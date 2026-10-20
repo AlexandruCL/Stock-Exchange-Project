@@ -103,14 +103,14 @@ No change to `model/*` or `Exchange`. Public additions beyond the PDF: `AccountS
 
 ## Tests
 
-`AccountServiceTest` (19), `EventBusTest` (10), `StockExchangeTest` (21), `TransactionLogTest` (5).
+`AccountServiceTest` (19), `EventBusTest` (11), `StockExchangeTest` (21), `TransactionLogTest` (5).
 
 - Accounts: reserve and reject without change, reserved cash is not reused, 1,000 cash with two concurrent buys of 800 (exactly one, 500 rounds) and the same for shares, release, release beyond reserved throws, settle at the limit, price improvement (limit 12, trade 10: 2 cents per share back), partial fill, missing reservation changes nothing, self-trade, buyer with no prior holding, view is a copy, totals constant, bad input. Plus a 4-thread settlement run in both directions (1 buys from 2 while 2 buys from 1) with a reader summing totals throughout: no deadlock (`@Timeout(60)`), totals never move.
 - Facade with John's engine: Ana/Bob/Carl through the facade with portfolios checked, resting-price trade with refund, every invalid or unknown input rejected with no state change and no events, insufficient funds and shares, idempotency (same result instance, different parameters, remembered rejects, 4 threads sending one id, 200 rounds), the 800/1,000 race across two companies (200 rounds), modify routing and rejects, crossing modify, cancel, event order and thread, unsubscribe, log against history, unknown ids, seed order, `close()`. Plus 8 trader threads x 2,000 random place/modify/cancel over the 5 seed companies: cash and shares conserved, nothing negative, no crossed book, reservations match open orders, every `globalSeq` delivered once and in order, log trades equal history.
 - EventBus: out-of-order publish, gap held until skipped, throwing listener, dispatcher thread, unsubscribe, `close()` drains and the thread ends, held-back events flushed on close, nothing after close, 8 publishers x 2,000 events in order.
 - TransactionLog: grouping, copies, format without timestamps, file contents, the same scenario twice gives identical files.
 
-`mvn test`: 115 tests, 0 failures, 3 runs in a row.
+`mvn test`: 146 tests for the whole project (after merging main), 0 failures.
 
 Mutation check (each in a scratch copy, as Abud's page asks):
 
@@ -134,4 +134,4 @@ Mutation check (each in a scratch copy, as Abud's page asks):
 | Pitfall 2: reserved vs available | Separate fields; release beyond reserved throws | Covered |
 | John's open point: publish order | Re-order buffer in `EventBus` | Covered |
 
-Known limits: the `requestId` and `orderId -> companyId` maps grow with every request (fine for a simulation). `place` after `close()` still trades, but its events are dropped. The log is byte-identical between runs only for single-threaded runs; with several trader threads the interleaving, and so the ids and `globalSeq` order, differs between runs. A listener that throws an `Error` (not a `RuntimeException`) stops the dispatcher.
+Known limits: the `requestId` and `orderId -> companyId` maps grow with every request (fine for a simulation). `place` after `close()` still trades, but its events are dropped. The log is byte-identical between runs only for single-threaded runs; with several trader threads the interleaving, and so the ids and `globalSeq` order, differs between runs.

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -99,7 +100,7 @@ public final class StockExchange implements Exchange {
         PlaceCall call = new PlaceCall(request, new CompletableFuture<>());
         PlaceCall first = requests.putIfAbsent(requestId, call);
         if (first != null) {
-            return first.request().equals(request) ? first.result().join() : rejected(Reject.DUPLICATE_REQUEST);
+            return first.request().equals(request) ? awaitFirst(first) : rejected(Reject.DUPLICATE_REQUEST);
         }
         try {
             Order order = new Order(orderIds.incrementAndGet(), traderId, companyId, side, price, qty);
@@ -216,6 +217,21 @@ public final class StockExchange implements Exchange {
                 }
             }
             drawn.clear();
+        }
+    }
+
+    // The first call's own exception, not a CompletionException wrapper, reaches a duplicate caller.
+    private static OrderResult awaitFirst(PlaceCall first) {
+        try {
+            return first.result().join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof RuntimeException cause) {
+                throw cause;
+            }
+            if (e.getCause() instanceof Error cause) {
+                throw cause;
+            }
+            throw e;
         }
     }
 
