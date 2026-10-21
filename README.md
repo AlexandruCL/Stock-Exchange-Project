@@ -1,6 +1,6 @@
 # Stock Exchange Simulation
 
-Trader threads buy and sell shares of several companies on one in-process exchange. Java 17, Maven, JUnit 5.
+Trader threads buy and sell shares of several companies on one in-process exchange. Java 25 LTS, Maven, JUnit 5.
 
 ## Build and run
 
@@ -10,7 +10,10 @@ mvn test
 mvn exec:java -Dexec.args="--seed 42 --seconds 30"
 ```
 
-`exec:java` needs `com.stockexchange.sim.Main`, which arrives with the `sim` package (Capa). Until then, code against `StubExchange` in `src/test/java/com/stockexchange/engine`.
+`Main` and the `sim` package are implemented. The default command requires the production
+`com.stockexchange.engine.StockExchange`, which is not present in the skeleton yet.
+For a runnable test-stub demonstration and integration instructions, see
+[`docs/simulation.md`](docs/simulation.md).
 
 ## Packages and owners
 
@@ -47,7 +50,7 @@ Additions to the section 3 contracts:
 | Safety invariant | Total cash across all portfolios (available + reserved) and total shares per company stay constant after every operation. No negative balance or holding. |
 | Determinism | The simulation takes a seed. The same seed gives the same orders from each trader. All events carry a global sequence number. |
 | Time source | `System.nanoTime()` inside the engine only. No `currentTimeMillis` in logic. |
-| Code style | Java 17, 4-space indent, one public class per file, no wildcard imports. Comments only where logic is non-obvious. |
+| Code style | Java 25 LTS, 4-space indent, one public class per file, no wildcard imports. Comments only where logic is non-obvious. |
 
 ## Seed data
 

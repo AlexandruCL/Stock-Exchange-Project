@@ -43,7 +43,7 @@ Seed values, all from constants in `SeedData`:
 
 ## How to run it now
 
-You need JDK 17 and Maven 3.9 or newer.
+You need JDK 25 LTS and Maven 3.9 or newer.
 
 On your machine, from the project folder:
 
