@@ -10,7 +10,10 @@ mvn test
 mvn exec:java -Dexec.args="--seed 42 --seconds 30"
 ```
 
-`exec:java` needs `com.stockexchange.sim.Main`, which arrives with the `sim` package (Capa). Until then, code against `StubExchange` in `src/test/java/com/stockexchange/engine`.
+`Main` and the `sim` package are implemented. The default command requires the production
+`com.stockexchange.engine.StockExchange`, which is not present in the skeleton yet.
+For a runnable test-stub demonstration and integration instructions, see
+[`docs/simulation.md`](docs/simulation.md).
 
 ## Packages and owners
 
