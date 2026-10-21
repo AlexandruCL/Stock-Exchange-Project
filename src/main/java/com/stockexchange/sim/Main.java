@@ -2,6 +2,7 @@ package com.stockexchange.sim;
 
 import com.stockexchange.engine.Exchange;
 import com.stockexchange.model.SeedData;
+import com.stockexchange.view.ConsoleView;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
@@ -19,9 +20,11 @@ public final class Main {
         }
         SeedData data = new SeedData();
         Exchange exchange = createExchange(options.exchangeClass(), data);
-        try (Simulation simulation = new Simulation(exchange, data, options.seed(), options.pauseMillis())) {
+        try (Simulation simulation = new Simulation(exchange, data, options.seed(), options.pauseMillis());
+             ConsoleView view = new ConsoleView(exchange, System.out, Duration.ofSeconds(5))) {
             Thread shutdown = new Thread(simulation::close, "simulation-shutdown");
             Runtime.getRuntime().addShutdownHook(shutdown);
+            view.start();
             try {
                 System.out.println("Starting simulation: seed=" + options.seed() + ", traders="
                         + data.traders().size() + ", exchange=" + options.exchangeClass());
