@@ -1,6 +1,6 @@
 # Simulation (Capa)
 
-Implemented in `com.stockexchange.sim`, using Java 25 LTS and the existing `Exchange` contract.
+Implemented in `com.stockexchange.sim`, using Java 17 and the existing `Exchange` contract.
 
 ## Run with the available stub
 
