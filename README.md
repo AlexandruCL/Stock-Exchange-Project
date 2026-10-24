@@ -1,5 +1,9 @@
 # Stock Exchange Simulation
 
+> **Branch `faulty/data-races`: intentionally broken, never to be merged.** It adds `com.stockexchange.faulty`
+> (a racy copy of the exchange) to demonstrate data races and consistency bugs. Read
+> [`docs/faulty-data-races.md`](docs/faulty-data-races.md). The correct solution is on `main`.
+
 Trader threads buy and sell shares of several companies on one in-process exchange. Java 17, Maven, JUnit 5.
 
 ## Build and run
