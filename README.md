@@ -3,6 +3,7 @@
 > **This project contains three programs:** the correct exchange and simulation (`engine`, `sim`, `view`), and two
 > intentionally broken ones for the concurrency-bugs task (`faulty` package: data races, and deadlock/livelock/performance).
 > How to run every program and how to read its output: [`docs/running-and-analysis.md`](docs/running-and-analysis.md).
+> Which Java file belongs to which program: [`docs/file-map.md`](docs/file-map.md).
 
 Trader threads buy and sell shares of several companies on one in-process exchange. Java 17, Maven, JUnit 5.
 

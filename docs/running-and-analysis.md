@@ -1,6 +1,7 @@
 # Running every program and proving it works from the data
 
-The project has **three programs** in one Maven project. Requirements: JDK 17 or newer and Maven 3.9.
+The project has **three programs** in one Maven project. Requirements: JDK 17 or newer and Maven 3.9. The Java files each
+program needs, and what every file does, are listed in [`file-map.md`](file-map.md).
 
 | # | Program | Main class | Purpose | Expected verdict |
 |---|---|---|---|---|
@@ -207,7 +208,7 @@ java -cp target/classes com.stockexchange.faulty.RaceDemo 2 3000                
 java -cp target/classes com.stockexchange.faulty.LivenessDemo all                             # deadlock, livelock, slowdown
 ```
 
-Documents to read, in order: [`requirements.md`](requirements.md) (what was asked and where it is), [`report.md`](report.md)
+Documents to read, in order: [`file-map.md`](file-map.md) (which files exist and which program uses them), [`requirements.md`](requirements.md) (what was asked and where it is), [`report.md`](report.md)
 (architecture, issue/mitigation table, tests), [`faulty-data-races.md`](faulty-data-races.md),
 [`faulty-deadlock-livelock.md`](faulty-deadlock-livelock.md) (bug catalogues and exam questions), [`glossary.md`](glossary.md).
 
