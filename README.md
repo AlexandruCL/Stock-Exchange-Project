@@ -1,5 +1,9 @@
 # Stock Exchange Simulation
 
+> **Branch `faulty/deadlock-livelock`: intentionally broken, never to be merged.** It adds
+> `com.stockexchange.faulty` to demonstrate deadlock, livelock and performance bugs. Read
+> [`docs/faulty-deadlock-livelock.md`](docs/faulty-deadlock-livelock.md). The correct solution is on `main`.
+
 Trader threads buy and sell shares of several companies on one in-process exchange. Java 17, Maven, JUnit 5.
 
 ## Build and run
