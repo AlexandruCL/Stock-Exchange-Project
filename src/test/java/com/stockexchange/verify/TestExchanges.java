@@ -1,6 +1,7 @@
 package com.stockexchange.verify;
 
 import com.stockexchange.engine.Exchange;
+import com.stockexchange.engine.StockExchange;
 import com.stockexchange.model.Company;
 import com.stockexchange.model.SeedData;
 import com.stockexchange.model.TraderAccount;
@@ -10,8 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The one place the cross-cutting tests get an Exchange from. When Fabi's StockExchange is merged,
- * replace {@code new ReferenceExchange(...)} here and every test runs against the real facade.
+ * The one place the cross-cutting tests get an Exchange from: the real {@code StockExchange}.
+ * {@link ReferenceExchange} is the independent stand-in the suite was written against; swap it
+ * back in here to compare the two.
  */
 public final class TestExchanges {
 
@@ -23,7 +25,7 @@ public final class TestExchanges {
     }
 
     public static Exchange create(List<Company> companies, List<TraderAccount> traders) {
-        return new ReferenceExchange(companies, traders);
+        return new StockExchange(companies, traders);
     }
 
     /** Companies priced at 10.00, and traders 1..count each holding the same cash and the same shares of each. */

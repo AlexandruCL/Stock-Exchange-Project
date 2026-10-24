@@ -3,8 +3,8 @@ package com.stockexchange.engine;
 import com.stockexchange.model.Trade;
 
 /**
- * The part of {@code AccountService} (Fabi) that the matching engine calls, with the signatures
- * from the task division. {@code AccountService} should declare {@code implements Accounts}.
+ * The part of {@code AccountService} that the matching engine calls. {@code AccountService}
+ * implements it; tests use in-memory implementations.
  * Every call arrives while the company lock is held, so implementations take the trader lock
  * (lower id first when two traders are involved) and must not print, log or call listeners.
  */

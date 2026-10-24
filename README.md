@@ -10,10 +10,14 @@ mvn test
 mvn exec:java -Dexec.args="--seed 42 --seconds 30"
 ```
 
-`Main` and the `sim` package are implemented. The default command requires the production
-`com.stockexchange.engine.StockExchange`, which is not present in the skeleton yet.
-For a runnable test-stub demonstration and integration instructions, see
-[`docs/simulation.md`](docs/simulation.md).
+`Main` runs a seeded simulation of 20 trader threads against `com.stockexchange.engine.StockExchange` and prints
+every trade plus a board of the order books every few seconds (`ConsoleView`). Options: `--seed`, `--seconds`,
+`--pause-ms`, `--exchange-class` (see [`docs/simulation.md`](docs/simulation.md), which also shows how to run against
+the test stub). The assignment, where each requirement is implemented and the concurrency design are in
+[`docs/requirements.md`](docs/requirements.md).
+
+Two intentionally broken variants for the second task live on the branches `faulty/data-races` and
+`faulty/deadlock-livelock`. They are never merged; each has its own document.
 
 ## Packages and owners
 
@@ -71,6 +75,7 @@ Additions to the section 3 contracts:
 ## Branches and pull requests
 
 - One branch per member: `cristea/skeleton`, `john/engine`, `fabi/accounts`, `capa/sim`, `abud/tests`.
+- `faulty/*` branches hold the deliberately broken solutions. They are read-only teaching material and are not merged.
 - Pull request into `main`, reviewed by at least one person who is not the author.
 - No direct pushes to `main` after the first merge.
 - Do not edit another member's package. Ask the owner or open a pull request to them.
@@ -89,7 +94,7 @@ Additions to the section 3 contracts:
 | `DeterminismTest` | Same seed gives a byte-identical event log |
 | `ShutdownTest` | 20 start/stop cycles leave no thread behind |
 
-They get their exchange from `TestExchanges.create(...)`. Until `StockExchange` is merged, that builds `ReferenceExchange` (test scope, over the real `MatchingEngine`); afterwards, change that one line.
+They get their exchange from `TestExchanges.create(...)`, which builds the real `StockExchange`. `ReferenceExchange` (test scope) is the independent stand-in the suite was first written against; swap it back in that one line to compare.
 
 `ConsoleView` (package `view`) subscribes to the exchange, prints one line per trade, and every N seconds prints the top 5 bids and asks, last price and last 10 trades of each company. It reads snapshots only and prints on its own `console-view` thread. Sample:
 
