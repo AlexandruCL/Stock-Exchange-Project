@@ -1,8 +1,9 @@
 # Faulty solution 1: data races and data consistency
 
-Branch `faulty/data-races`, cut from `main`. **Never merged.** The correct solution on `main` is untouched;
-everything here lives in `com.stockexchange.faulty` (and one test). Second faulty solution (deadlock, livelock,
-performance): branch `faulty/deadlock-livelock`.
+Written on branch `faulty/data-races`, now part of `main`. **Intentionally broken, never use it as an `Exchange`
+in real code.** The correct solution is untouched; everything here lives in `com.stockexchange.faulty` (and one test).
+Second faulty solution (deadlock, livelock, performance): [`faulty-deadlock-livelock.md`](faulty-deadlock-livelock.md).
+How to run and read all programs: [`running-and-analysis.md`](running-and-analysis.md).
 
 The idea: take the correct classes, remove exactly the thread-safety, and keep every other line identical. Then a
 diff against `main` is the answer to "what does the lock protect?".
@@ -26,8 +27,9 @@ java -cp target/classes com.stockexchange.sim.Main --seed 42 --seconds 5 --pause
 mvn test                                                              # RacyExchangeTest proves the branch is faulty
 ```
 
-`RaceDemo` runs 20 trader threads (one per trader of `SeedData`) against the correct `StockExchange` and then
-against `RacyExchange`, with the same seeded workload, and checks at rest what must always hold. Output of a real
+`RaceDemo` runs 20 trader threads (one per trader of `SeedData`) with the same seeded workload, first for all rounds
+against the correct `StockExchange`, then for all rounds against `RacyExchange` (a hung racy round leaves spinning threads
+that would slow any run after it), and checks at rest what must always hold. Output of a real
 run (numbers differ every run, because races are probabilistic):
 
 ```

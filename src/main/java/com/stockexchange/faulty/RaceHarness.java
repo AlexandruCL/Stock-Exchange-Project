@@ -59,6 +59,16 @@ public final class RaceHarness {
     }
 
     public static Report run(String name, Exchange exchange, SeedData seed, int opsPerTrader, long randomSeed) {
+        return run(name, exchange, seed, opsPerTrader, randomSeed, 15);
+    }
+
+    /**
+     * {@code timeoutSeconds}: workers still running after that are reported as hung and keep running
+     * (a thread looping in a corrupted TreeMap cannot be stopped), so the at-rest check of a hung run
+     * is only indicative.
+     */
+    public static Report run(String name, Exchange exchange, SeedData seed, int opsPerTrader, long randomSeed,
+                             int timeoutSeconds) {
         Map<String, Long> exceptions = new ConcurrentHashMap<>();
         Map<Long, Long> orderQty = new ConcurrentHashMap<>();
         List<Long> issuedIds = java.util.Collections.synchronizedList(new ArrayList<>());
@@ -96,7 +106,7 @@ public final class RaceHarness {
         try {
             ready.await();
             go.countDown();
-            hung = !done.await(15, TimeUnit.SECONDS);
+            hung = !done.await(timeoutSeconds, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             hung = true;

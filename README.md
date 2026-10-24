@@ -1,8 +1,8 @@
 # Stock Exchange Simulation
 
-> **Branch `faulty/data-races`: intentionally broken, never to be merged.** It adds `com.stockexchange.faulty`
-> (a racy copy of the exchange) to demonstrate data races and consistency bugs. Read
-> [`docs/faulty-data-races.md`](docs/faulty-data-races.md). The correct solution is on `main`.
+> **This project contains three programs:** the correct exchange and simulation (`engine`, `sim`, `view`), and two
+> intentionally broken ones for the concurrency-bugs task (`faulty` package: data races, and deadlock/livelock/performance).
+> How to run every program and how to read its output: [`docs/running-and-analysis.md`](docs/running-and-analysis.md).
 
 Trader threads buy and sell shares of several companies on one in-process exchange. Java 17, Maven, JUnit 5.
 
@@ -20,8 +20,9 @@ every trade plus a board of the order books every few seconds (`ConsoleView`). O
 the test stub). The assignment, where each requirement is implemented and the concurrency design are in
 [`docs/requirements.md`](docs/requirements.md).
 
-Two intentionally broken variants for the second task live on the branches `faulty/data-races` and
-`faulty/deadlock-livelock`. They are never merged; each has its own document.
+The two intentionally broken variants for the second task are in the package `com.stockexchange.faulty`
+(documents: [`docs/faulty-data-races.md`](docs/faulty-data-races.md),
+[`docs/faulty-deadlock-livelock.md`](docs/faulty-deadlock-livelock.md)). Nothing in the correct code depends on them.
 
 ## Packages and owners
 
@@ -79,7 +80,7 @@ Additions to the section 3 contracts:
 ## Branches and pull requests
 
 - One branch per member: `cristea/skeleton`, `john/engine`, `fabi/accounts`, `capa/sim`, `abud/tests`.
-- `faulty/*` branches hold the deliberately broken solutions. They are read-only teaching material and are not merged.
+- `faulty/data-races` and `faulty/deadlock-livelock` were the branches the broken solutions were written on; they are now merged into `main` and kept for history.
 - Pull request into `main`, reviewed by at least one person who is not the author.
 - No direct pushes to `main` after the first merge.
 - Do not edit another member's package. Ask the owner or open a pull request to them.

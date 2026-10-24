@@ -38,6 +38,8 @@ public final class Main {
                 }
             }
         }
+        // After the view is closed, so no trade line is printed below the summary.
+        System.out.println(RunSummary.of(exchange, data).text());
     }
 
     static Exchange createExchange(String className, SeedData data) throws ReflectiveOperationException {

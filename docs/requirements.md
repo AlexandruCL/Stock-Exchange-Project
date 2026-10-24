@@ -23,16 +23,15 @@ Run it: `mvn exec:java -Dexec.args="--seed 42 --seconds 30"`. Test it: `mvn test
 
 ## 2. Faulty solutions (second task)
 
-Two intentionally broken variants, each on its own branch, **never to be merged**. Each branch has its own
-document with the bug list, the fix on `main`, the primitive involved and a question list.
+Two intentionally broken variants in package `com.stockexchange.faulty` (written on the branches
+`faulty/data-races` and `faulty/deadlock-livelock`, now merged). Nothing in the correct code depends on them.
 
-| Branch | Focus | Document (on that branch) |
-|---|---|---|
-| `faulty/data-races` | Data races and consistency: missing locks, lost updates, check-then-act, unsafe publication, non-thread-safe collections | `docs/faulty-data-races.md` |
-| `faulty/deadlock-livelock` | Deadlock (inconsistent lock order, callback under a lock), livelock (`tryLock` without backoff), performance (global lock, busy waiting) | `docs/faulty-deadlock-livelock.md` |
+| Variant | Focus | Document | Program |
+|---|---|---|---|
+| Data races | Missing locks, lost updates, check-then-act, unsafe publication, non-thread-safe collections | [`faulty-data-races.md`](faulty-data-races.md) | `RaceDemo`, `PrimitiveDemos`, `RacyExchange` |
+| Deadlock, livelock, performance | Inconsistent lock order, callback under a lock, `tryLock` without backoff, global lock, busy waiting | [`faulty-deadlock-livelock.md`](faulty-deadlock-livelock.md) | `LivenessDemo` |
 
-Look at them with `git switch faulty/data-races` (or `faulty/deadlock-livelock`); `git diff main --stat` shows
-what was added. Neither branch changes the correct classes.
+How to run each and what the output proves: [`running-and-analysis.md`](running-and-analysis.md).
 
 ## 3. Concurrency design on `main` in one table
 

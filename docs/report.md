@@ -53,7 +53,7 @@ Lock order: company lock, then trader lock (lower id first when two traders sett
 | 8 | Global lock too slow | One engine and lock per company | `MatchingEngine` per company | By design (the stress run trades 5 companies in parallel) |
 | 9 | Duplicate / lost messages | `requestId` with atomic `putIfAbsent`; every event has a `globalSeq` | `StockExchange.place` | `RaceConditionTest.sameRequestIdFromEightThreads...`; `StressTest` checks OrderCreated count = accepted places |
 | 10 | Stale client view | `expectedVersion` on modify, VERSION_CONFLICT | `MatchingEngine.modify` | `ExchangeContractTest.modify_should_reject...`; partial-fill race |
-| 11 | Busy waiting | Blocking queue plus timeout | `Trader` sleeps between orders; the `EventBus` dispatcher blocks in `take()`; `ConsoleView` is scheduled. Nothing spins | Review; the spinning variant is demonstrated on branch `faulty/deadlock-livelock` |
+| 11 | Busy waiting | Blocking queue plus timeout | `Trader` sleeps between orders; the `EventBus` dispatcher blocks in `take()`; `ConsoleView` is scheduled. Nothing spins | Review; the spinning variant is `faulty.SpinningConsumer` |
 | 12 | Shutdown / thread leaks | Poison pill, join with timeout, executor shutdown | `EventBus.close`, `ConsoleView.close`, `Simulation.close` | `ShutdownTest` (20 start/stop cycles, no `exchange-dispatcher` or `console-view` thread left) |
 
 ## 4. Pitfalls and how we handled them
@@ -117,7 +117,7 @@ Each check ran once against a throwaway copy of the source with one safeguard re
 - `MatchingEngine.history` is a `CopyOnWriteArrayList`: every trade copies the whole array (O(n)). It gives lock-free consistent reads and is fine at this scale; a much longer run would want a chunked append-only log.
 - `Main` prints trades and boards but no final summary; the end-of-run invariants (cash and share conservation) are checked by the tests, not printed by the simulation.
 - The race tests repeat thousands of times, but they cannot prove the absence of a race, only make one very likely to show. The proof is the lock order in section 2.
-- The assignment's second task (faulty solutions) is not on `main`: see `faulty/data-races` and `faulty/deadlock-livelock`, and [`requirements.md`](requirements.md).
+- The assignment's second task (faulty solutions) is in package `faulty`; see [`requirements.md`](requirements.md) and [`running-and-analysis.md`](running-and-analysis.md).
 
 ## 8. Demo script (presentation)
 
@@ -126,7 +126,7 @@ Each check ran once against a throwaway copy of the source with one safeguard re
 3. Rejected modifies are normal results: a modify with an old version gets VERSION_CONFLICT, a modify of a filled order gets ORDER_CLOSED (`StressTest` prints the reject counts by reason).
 4. Conservation of money and shares: `InvariantChecker` at the end of `StressTest` (total cash 2,000,000,000 cents, 5,000 shares per company, no negative balance).
 5. Re-run with `--seed 42`: same orders per trader (`DeterminismTest` shows the event log is byte-identical in a single-threaded run).
-6. Second task: `git switch faulty/data-races`, run `RaceDemo` and show the correct exchange passing and the racy one breaking; `git switch faulty/deadlock-livelock`, run `LivenessDemo`.
+6. Second task: run `RaceDemo` (correct exchange passes, racy one breaks) and `LivenessDemo` (deadlock, livelock, slowdown); see `running-and-analysis.md`.
 
 ## 9. Running the tests
 
